@@ -2,6 +2,7 @@
 #include <iostream>
 #include <opencv2/dnn.hpp>
 #include <fstream>
+#include <string>
 
 using namespace std;
 using namespace cv;
@@ -13,14 +14,16 @@ int main()
     double fps = cap.get(CAP_PROP_FPS);
     int delay = 1000 / fps;
     float theta = 0;
-    Mat frame, result,frame_clone2, edge_left, edge_mid, edge_right;
+    Mat frame, result, frame_clone2, edge_left, edge_mid, edge_right;
     Mat line_detect_left, line_detect_mid, line_detect_right;
     Mat inputBlob, detectionMat;
     Rect rect_left(145, 0, 145, 480);
-    Rect rect_mid(290, 0, 145, 480);
+    Rect rect_mid(290, 240, 145, 240);
     Rect rect_right(435, 0, 145, 480);
     vector<Vec2f> line_detected_left, line_detected_mid, line_detected_right;
-    // deeplearn
+
+    String labelname;
+
     String modelConfiguration = "YOLO/yolov2-tiny.cfg";
     String modelBinary = "YOLO/yolov2-tiny.weights";
 
@@ -28,6 +31,7 @@ int main()
 
     vector<String> classNamesVec;
 
+    // class name load
     ifstream classNamesFile("YOLO/coco.names");
     if (classNamesFile.is_open())
     {
@@ -36,6 +40,7 @@ int main()
         while (std::getline(classNamesFile, className))
             classNamesVec.push_back(className);
     }
+
     while (1)
     {
 
@@ -44,10 +49,13 @@ int main()
 
         if (frame.empty())
             break;
+        // frame clone
         result = frame.clone();
-        frame_clone2=frame.clone();
+        frame_clone2 = frame.clone();
+
         if (frame_clone2.channels() == 4)
             cvtColor(frame_clone2, frame_clone2, COLOR_BGRA2BGR);
+        // grayscale
         cvtColor(frame, frame, CV_BGR2GRAY);
 
         inputBlob = blobFromImage(frame_clone2, 1 / 255.F, Size(416, 416), Scalar(), true, false);
@@ -77,16 +85,26 @@ int main()
                 Point p1(cvRound(x_center - width / 2), cvRound(y_center - height / 2));
                 Point p2(cvRound(x_center + width / 2), cvRound(y_center + height / 2));
                 Rect object(p1, p2);
+
+                // green box detect
                 Scalar object_roi_color(0, 255, 0);
-                rectangle(result, object, object_roi_color);
+
                 String className = objectClass < classNamesVec.size() ? classNamesVec[objectClass] : cv::format("unknown(%d)", objectClass);
                 String label = format("%s: %.2f", className.c_str(), confidence);
+                labelname = format("%s", className.c_str());
+
                 int baseLine = 0;
                 Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-                rectangle(result, Rect(p1, Size(labelSize.width, labelSize.height + baseLine)), object_roi_color, FILLED);
-                putText(result, label, p1 + Point(0, labelSize.height), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 0));
-            }
-        }
+
+                // when car && person detect
+                if ((labelname.compare("car") == 0) && (labelname.compare("person")==0))
+                {
+                    rectangle(result, object, object_roi_color);
+                    rectangle(result, Rect(p1, Size(labelSize.width, labelSize.height + baseLine)), object_roi_color, FILLED);
+                    putText(result, label, p1 + Point(0, labelSize.height), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 0));
+                }
+            } // if (confidence > confidenceThreshold)
+        }     // for (int i = 0; i < detectionMat.rows; i++)
 
         line_detect_left = frame(rect_left);
         line_detect_mid = frame(rect_mid);
@@ -111,7 +129,7 @@ int main()
         cout << line_detected_right.size() << endl;
 
         imshow("", result);
-       
+
         if (waitKey(1) >= 0)
             break;
     }
